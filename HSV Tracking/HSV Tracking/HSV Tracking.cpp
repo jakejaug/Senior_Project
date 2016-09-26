@@ -12,8 +12,8 @@ using namespace std;
 Mat src, hsv, dst;
 
 //void makeTrackbar();
-void hsvThresh();
-void contours();
+//void hsvThresh();
+//void contours();
 
 
 int main() {
@@ -22,8 +22,8 @@ int main() {
 
 	imshow("Original", src);
 	imshow("HSV", hsv);
-	hsvThresh();
-	contours();
+	//hsvThresh();
+	//contours();
 	
 
 	waitKey(0);
