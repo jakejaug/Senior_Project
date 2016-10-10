@@ -17,6 +17,7 @@
 #include <sstream>
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <opencv\highgui.h>
 #include <opencv\cv.h>
 #include <opencv2/highgui/highgui.hpp>
@@ -47,7 +48,9 @@ const string windowName1 = "HSV Image";
 const string windowName2 = "Thresholded Image";
 const string windowName3 = "After Morphological Operations";
 const string trackbarWindowName = "Trackbars";
-const string filein = "C:/Users/Jake/Desktop/cmov.avi";
+//const string filein = 0;
+ofstream coord("C:/Users/Jake/Desktop/coord.txt");
+
 void on_trackbar(int, void*)
 {//This function gets called whenever a
  // trackbar position is changed
@@ -178,6 +181,8 @@ void trackFilteredObject(int &x, int &y, Mat threshold, Mat &cameraFeed) {
 				putText(cameraFeed, "Tracking Object", Point(0, 50), 2, 1, Scalar(0, 255, 0), 2);
 				//draw object location on screen
 				drawObject(x, y, cameraFeed);
+				coord << x << " , " << y << endl;
+				
 			}
 
 		}
@@ -204,12 +209,13 @@ int main(int argc, char* argv[])
 	VideoCapture capture;
 	//capture = imread("C:\Users\Jake\Desktop\circles.jpg");
 	//open capture object at location zero (default location for webcam)
-	capture.open(filein);
+	capture.open(0);
 	//set height and width of capture frame
 	capture.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
 	capture.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
 	//start an infinite loop where webcam feed is copied to cameraFeed matrix
 	//all of our operations will be performed within this loop
+	
 	while (1) {
 		//store image to matrix
 		capture.read(cameraFeed);
