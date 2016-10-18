@@ -8,12 +8,13 @@
 #include <numeric>
 #include <algorithm>
 #include <iterator>
+#include <math.h>
 
 using namespace cv;
 using namespace std;
 
-vector<double> filter(vector<double> u, vector<double> v) {	//Filters extra circles out
-	double devscale = 1.5;
+vector<double> filter(vector<double> u, vector<double> v, Mat img) {	//Filters extra circles out
+	double devscale = 3;
 	double sumv = std::accumulate(v.begin(), v.end(), 0.0);	//Calculate mean
 	double meanv = sumv / v.size();
 	double sq_sumv = std::inner_product(v.begin(), v.end(), v.begin(), 0.0);
@@ -27,14 +28,100 @@ vector<double> filter(vector<double> u, vector<double> v) {	//Filters extra circ
 	double hiu = meanu + devscale*stdevu;
 	double lowu = meanu - devscale*stdevu;
 	vector<double> fil;
-	//cout << u.size() << " + " << v.size() << endl;
+	double s = (stdevu + stdevv) / 2;
+	s = s*1.8;
+	if(s>0)
+		circle(img, Point(meanu, meanv), s, Scalar(255, 0, 0), 3, LINE_AA);
 	for (int i = 0; i < (v.size()); i++) {
-		if (((u[i] > lowu) && (u[i] < hiu)) && ((v[i] > lowv) && (v[i] < hiv))) {
+		double r = sqrt(pow(u[i] - meanu, 2) + pow(v[i] - meanv, 2));
+		if (r < s) {
 			fil.push_back(u[i]);
 			fil.push_back(v[i]);
 		}
+
 	}
 	return fil;	//return new vector
+}
+
+vector<double> sort(vector<double> f) {
+	double x[6];
+	double y[6];
+	int j = 0;
+	for (int i = 0; i < 6; i++) {
+		x[i] = f[j];
+		y[i] = f[j + 1];
+		j=j+2;
+	}
+	double sx=0;
+	double sy=0;
+	for (int i = 0; i < 6; i++) {
+		sx += x[i];
+		sy += y[i];
+	}
+	double mx = sx / 6.0;
+	double my = sy / 6.0;
+	double r[6];
+	for (int i = 0; i < 6; i++) {
+		r[i] = sqrt(pow(x[i]-mx, 2) + pow(y[i]-my, 2));
+	}
+	double sml = r[0];
+	int p;
+	for (int i = 0; i < 6; i++) {
+		if (sml >= r[i]) {
+			sml = r[i];
+			p = i;
+		}
+	}
+	vector<double> sort;
+	sort.push_back(x[p]);
+	sort.push_back(y[p]);
+	double theta[5];
+	double x2[5];
+	double y2[5];
+	int l = 0;
+	cout << "start" << endl;
+	for (int i = 0; i < 6; i++) {
+		if (i != p) {
+			theta[l] = atan2((y[i]-my), (x[i]-mx));
+			//cout << theta[i] << endl;
+			x2[l] = x[i];
+			y2[l] = y[i];
+			l++;
+			//cout << x2[i] << "  " << y2[i] << endl;
+		}
+	}
+
+	bool swap = true;
+	int k = 0;
+	while(swap) {
+		swap = false;
+		k++;
+		for (int j = 0; j < 5-k; j++)
+		{
+			if (theta[j] > theta[j + 1])
+			{
+				double temp = theta[j + 1];
+				double tempx = x2[j + 1];
+				double tempy = y2[j + 1];
+				theta[j + 1] = theta[j];
+				x2[j + 1] = x2[j];
+				y2[j + 1] = y2[j];
+				theta[j] = temp;
+				x2[j] = tempx;
+				y2[j] = tempy;
+				swap = true;
+				
+			}
+			//cout << x2[j] << "  " << y2[j] << endl;
+		}
+		//cout << x2[i] << "  " << y2[i] << endl;
+	}
+	for (int i = 0; i < 5; i++) {
+		cout << theta[i] << " " << (x2[i]-mx) <<" " <<(y2[i]-my)<<endl;
+		sort.push_back(x2[i]);
+		sort.push_back(y2[i]);
+	}
+	return sort;
 }
 
 
@@ -59,18 +146,40 @@ int main(int argc, char** argv)
 		vector<double> ycoord;  //vector used to store y-coordinates of circles
 		for (size_t i = 0; i < circles.size(); i++) {
 			Vec3i c = circles[i];
-			//circle(img, Point(c[0], c[1]), c[2], Scalar(0, 0, 255), 3, LINE_AA);	//Draws detected circles in image
+			circle(img, Point(c[0], c[1]), c[2], Scalar(0, 0, 255), 3, LINE_AA);	//Draws detected circles in image
 			//circle(img, Point(c[0], c[1]), 2, Scalar(255, 0, 0), 3, LINE_AA);
 			xcoord.push_back(c[0]); //store x values in xcoord
 			ycoord.push_back(c[1]); //store y values in ycoord
 		}
-		vector<double> filr = filter(xcoord, ycoord);
-		cout << filr.size() << endl;
-		if (filr.size()==12){
-			//for (int i = 0; i < 12; i + 2)
-				//circle(img, Point(filr[i], filr[i+1]), 2, Scalar(255, 0, 0), 3, LINE_AA);
-				cout << "target" << endl;
+		int ptsx[] = { 276, 277, 308, 275, 300, 238};
+		int ptsy[] = { 162, 187, 173, 152, 143, 138 };
+		//for (int i = 0; i < 6; i++) {
+			//circle(img, Point(ptsx[i], ptsy[i]), 1, Scalar(255, 255, 0), 3, 8, 0);
+		//}
+		vector<double> filr = filter(xcoord, ycoord, img);
+		//cout << filr.size() << endl;
+		int count2 = 0;
+		if (filr.size() == 12) {
+			//cir << "Filtered:" << endl;
+			//for (int i = 0; i < 6; i++) {
+			//	cir << "x:  " << filr[count2] << "y:  " << filr[count2 + 1] << endl;
+				//count2 = count2 + 2;
+			//}
+			vector<double> s = sort(filr);
+			int count = 0;
+			//cir << "Start Sort" << endl;
+			for (int i = 0; i < 6; i++) {
+				circle(img, Point(s[count], s[count+1]), 1, Scalar(255, 0, 0), 3, 8, 0);
+				cir << s[count] << " " << s[count + 1] << " ";
+				count = count + 2;
+			}
+			//cir << endl;
+			//for (int i = 0; i < 12; i++)
+				//cir << filr[i] << "	";
+			
 		}
+		cir << endl;
+		
 
 		imshow("detected circles", img); //Show detected circles
 		if(waitKey(100)=='q')	//hold 'q' to quit program
