@@ -28,12 +28,12 @@ vector<double> filter(vector<double> u, vector<double> v, Mat img) {	//Filters e
 	double hiu = meanu + devscale*stdevu;
 	double lowu = meanu - devscale*stdevu;
 	vector<double> fil;
-	double s = (stdevu + stdevv) / 2;
+	double s = (stdevu + stdevv) / 2;  //average standard deviation of x and y
 	s = s*1.8;
 	if(s>0)
-		circle(img, Point(meanu, meanv), s, Scalar(255, 0, 0), 3, LINE_AA);
+		circle(img, Point(meanu, meanv), s, Scalar(255, 0, 0), 3, LINE_AA);	//draw circle representing std
 	for (int i = 0; i < (v.size()); i++) {
-		double r = sqrt(pow(u[i] - meanu, 2) + pow(v[i] - meanv, 2));
+		double r = sqrt(pow(u[i] - meanu, 2) + pow(v[i] - meanv, 2));	//fill vector with values within std
 		if (r < s) {
 			fil.push_back(u[i]);
 			fil.push_back(v[i]);
@@ -43,7 +43,7 @@ vector<double> filter(vector<double> u, vector<double> v, Mat img) {	//Filters e
 	return fil;	//return new vector
 }
 
-vector<double> sort(vector<double> f) {
+vector<double> sort(vector<double> f) {		//sorts the coordinates found from circle tracking
 	double x[6];
 	double y[6];
 	int j = 0;
@@ -58,7 +58,7 @@ vector<double> sort(vector<double> f) {
 		sx += x[i];
 		sy += y[i];
 	}
-	double mx = sx / 6.0;
+	double mx = sx / 6.0;	//find mean coordinate values
 	double my = sy / 6.0;
 	double r[6];
 	for (int i = 0; i < 6; i++) {
@@ -72,7 +72,7 @@ vector<double> sort(vector<double> f) {
 			p = i;
 		}
 	}
-	vector<double> sort;
+	vector<double> sort;	//add circle closest to mean first
 	sort.push_back(x[p]);
 	sort.push_back(y[p]);
 	double theta[5];
@@ -82,7 +82,7 @@ vector<double> sort(vector<double> f) {
 	cout << "start" << endl;
 	for (int i = 0; i < 6; i++) {
 		if (i != p) {
-			theta[l] = atan2((y[i]-my), (x[i]-mx));
+			theta[l] = atan2((y[i]-my), (x[i]-mx));		//determine radial position of the remaining circles
 			//cout << theta[i] << endl;
 			x2[l] = x[i];
 			y2[l] = y[i];
@@ -93,7 +93,7 @@ vector<double> sort(vector<double> f) {
 
 	bool swap = true;
 	int k = 0;
-	while(swap) {
+	while(swap) {		//sort circle coordinates by increasing radial value
 		swap = false;
 		k++;
 		for (int j = 0; j < 5-k; j++)
@@ -116,7 +116,7 @@ vector<double> sort(vector<double> f) {
 		}
 		//cout << x2[i] << "  " << y2[i] << endl;
 	}
-	for (int i = 0; i < 5; i++) {
+	for (int i = 0; i < 5; i++) {	//add sorted coordinates to vector
 		cout << theta[i] << " " << (x2[i]-mx) <<" " <<(y2[i]-my)<<endl;
 		sort.push_back(x2[i]);
 		sort.push_back(y2[i]);
@@ -152,11 +152,11 @@ int main(int argc, char** argv)
 			ycoord.push_back(c[1]); //store y values in ycoord
 		}
 		int ptsx[] = { 276, 277, 308, 275, 300, 238};
-		int ptsy[] = { 162, 187, 173, 152, 143, 138 };
+		int ptsy[] = { 162, 187, 173, 152, 143, 138};
 		//for (int i = 0; i < 6; i++) {
 			//circle(img, Point(ptsx[i], ptsy[i]), 1, Scalar(255, 255, 0), 3, 8, 0);
 		//}
-		vector<double> filr = filter(xcoord, ycoord, img);
+		vector<double> filr = filter(xcoord, ycoord, img);	//use statistics to filter out unwanted circles
 		//cout << filr.size() << endl;
 		int count2 = 0;
 		if (filr.size() == 12) {
@@ -165,11 +165,11 @@ int main(int argc, char** argv)
 			//	cir << "x:  " << filr[count2] << "y:  " << filr[count2 + 1] << endl;
 				//count2 = count2 + 2;
 			//}
-			vector<double> s = sort(filr);
+			vector<double> s = sort(filr);	//sort filtered circle into form of target feature vector
 			int count = 0;
 			//cir << "Start Sort" << endl;
 			for (int i = 0; i < 6; i++) {
-				circle(img, Point(s[count], s[count+1]), 1, Scalar(255, 0, 0), 3, 8, 0);
+				circle(img, Point(s[count], s[count+1]), 1, Scalar(255, 0, 0), 3, 8, 0);	//Draw center point for current feature vector
 				cir << s[count] << " " << s[count + 1] << " ";
 				count = count + 2;
 			}
