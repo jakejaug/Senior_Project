@@ -1,5 +1,5 @@
 #include "stdafx.h"	//only needed for Visual Studio
-#include "opencv2/imgcodecs.hpp"	//I forget what each of these librarys do
+#include "opencv2/imgcodecs.hpp"
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
 #include <vector>
@@ -9,10 +9,13 @@
 #include <algorithm>
 #include <iterator>
 #include <math.h>
+#include <Eigen\Dense.h>
 
 using namespace cv;
 using namespace std;
+using namespace Eigen;
 
+//filters out circles outside of the target
 vector<double> filter(vector<double> u, vector<double> v, Mat img) {	//Filters extra circles out
 	double devscale = 3;
 	double sumv = std::accumulate(v.begin(), v.end(), 0.0);	//Calculate mean
@@ -43,7 +46,9 @@ vector<double> filter(vector<double> u, vector<double> v, Mat img) {	//Filters e
 	return fil;	//return new vector
 }
 
-vector<double> sort(vector<double> f) {		//sorts the coordinates found from circle tracking
+//sorts the coordinates found from circle tracking
+MatrixXd sort(vector<double> f) {		
+	MatrixXd sort(12, 1);
 	double x[6];
 	double y[6];
 	int j = 0;
@@ -58,7 +63,8 @@ vector<double> sort(vector<double> f) {		//sorts the coordinates found from circ
 		sx += x[i];
 		sy += y[i];
 	}
-	double mx = sx / 6.0;	//find mean coordinate values
+	//find mean coordinate values
+	double mx = sx / 6.0;	
 	double my = sy / 6.0;
 	double r[6];
 	for (int i = 0; i < 6; i++) {
@@ -72,28 +78,27 @@ vector<double> sort(vector<double> f) {		//sorts the coordinates found from circ
 			p = i;
 		}
 	}
-	vector<double> sort;	//add circle closest to mean first
-	sort.push_back(x[p]);
-	sort.push_back(y[p]);
+	//add circle closest to mean first
+	sort.row(0) << x[p];
+	sort.row(1) << y[p];
 	double theta[5];
 	double x2[5];
 	double y2[5];
 	int l = 0;
-	cout << "start" << endl;
+	//determine radial position of the remaining circles
 	for (int i = 0; i < 6; i++) {
 		if (i != p) {
-			theta[l] = atan2((y[i]-my), (x[i]-mx));		//determine radial position of the remaining circles
-			//cout << theta[i] << endl;
+			theta[l] = atan2((y[i]-my), (x[i]-mx));
 			x2[l] = x[i];
 			y2[l] = y[i];
 			l++;
-			//cout << x2[i] << "  " << y2[i] << endl;
 		}
 	}
 
 	bool swap = true;
 	int k = 0;
-	while(swap) {		//sort circle coordinates by increasing radial value
+	//sort circle coordinates by increasing radial value
+	while(swap) {
 		swap = false;
 		k++;
 		for (int j = 0; j < 5-k; j++)
@@ -110,16 +115,16 @@ vector<double> sort(vector<double> f) {		//sorts the coordinates found from circ
 				x2[j] = tempx;
 				y2[j] = tempy;
 				swap = true;
-				
 			}
-			//cout << x2[j] << "  " << y2[j] << endl;
 		}
-		//cout << x2[i] << "  " << y2[i] << endl;
 	}
-	for (int i = 0; i < 5; i++) {	//add sorted coordinates to vector
-		cout << theta[i] << " " << (x2[i]-mx) <<" " <<(y2[i]-my)<<endl;
-		sort.push_back(x2[i]);
-		sort.push_back(y2[i]);
+	//add sorted coordinates to matrix
+	int count = 2;
+	for (int i = 0; i < 5; i++) {	
+		sort.row(count) << x2[i];
+		count++;
+		sort.row(count) << y2[i];
+		count++;
 	}
 	return sort;
 }
@@ -128,63 +133,109 @@ vector<double> sort(vector<double> f) {		//sorts the coordinates found from circ
 int main(int argc, char** argv)
 {
 	ofstream cir("C:/Users/Jake/Desktop/Circle.txt");
-	VideoCapture cap(0);	//Captures video from specified device
+	//Captures video from specified device
+	VideoCapture cap(0);
+	//Create place holder values
+	MatrixXd fc(12,1);
+	MatrixXd fp(12, 1);
+	fp << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+	MatrixXd thec(3, 1);
+	thec << 0, 0, 0;
+	MatrixXd thep(3, 1);
+	thep << 0, 0, 0;
+	MatrixXd jac(12, 3);
+	jac << 89, 0, 7, 0, 71, -8, 72, 0, -3, 0, 51, 13, 94, 0, 6, 0, 16, 6, 116, 0, -3, 0, 48, -25,
+		101, 0, 4, 0, 107, -37, 71, 0, 4, 0, 107, 4;
+	//jac << -103, 1, -99, 3, -37, 3, -115, 13, -119, -3, -33, 1, -108, 0, -110, -9, -33, -13, -100,
+		//-10, -96, -10, -38, -10, -91, -5, -83, 8, -40, 6, -111, 5, -107, 11, -37, 23;
+	MatrixXd P(3, 3);
+	P << 1, 0, 0, 0, 1, 0, 0, 0, 1;
+	double lamb = 0.5;
+	MatrixXd lam(1, 1);
+		lam << lamb;
+	bool init = false;
 	while (1) {
 		Mat img;
-		cap.read(img);	//Read data from video frame
-		Mat gray;	
-		cvtColor(img, gray, COLOR_BGR2GRAY);	//Converts image to grayscale
-		medianBlur(gray, gray, 5);		//Blurs image to reduce noise
-		vector<Vec3f> circles;	//Vector to hold values from circle detection
-		HoughCircles(gray, circles, HOUGH_GRADIENT, 1,	//Detect circles in image
-			gray.rows / 8, // change this value to detect circles with different distances to each other
-			100, 30, 1, 50 // change the last two parameters
-						   // (min_radius & max_radius) to detect larger circles
-		);
-
-		vector<double> xcoord;  //vector used to store x-coordinates of circles
-		vector<double> ycoord;  //vector used to store y-coordinates of circles
+		//Read data from video frame
+		cap.read(img);	
+		Mat gray;
+		//Converts image to grayscale
+		cvtColor(img, gray, COLOR_BGR2GRAY);
+		//Blurs image to reduce noise
+		medianBlur(gray, gray, 5);
+		//Vector to hold values from circle detection
+		vector<Vec3f> circles;	
+		//Detect circles in image
+		HoughCircles(gray, circles, HOUGH_GRADIENT, 1,	gray.rows / 8, 100, 30, 1, 50);
+		//vectors used to store x and Y coordinates of circles
+		vector<double> xcoord;  
+		vector<double> ycoord;
 		for (size_t i = 0; i < circles.size(); i++) {
 			Vec3i c = circles[i];
-			circle(img, Point(c[0], c[1]), c[2], Scalar(0, 0, 255), 3, LINE_AA);	//Draws detected circles in image
-			//circle(img, Point(c[0], c[1]), 2, Scalar(255, 0, 0), 3, LINE_AA);
-			xcoord.push_back(c[0]); //store x values in xcoord
-			ycoord.push_back(c[1]); //store y values in ycoord
+			//Draws detected circles in image
+			circle(img, Point(c[0], c[1]), c[2], Scalar(0, 0, 255), 3, LINE_AA);
+			//stores coordinate values in vector
+			xcoord.push_back(c[0]);
+			ycoord.push_back(c[1]);
 		}
-		int ptsx[] = { 276, 277, 308, 275, 300, 238};
-		int ptsy[] = { 162, 187, 173, 152, 143, 138};
-		//for (int i = 0; i < 6; i++) {
-			//circle(img, Point(ptsx[i], ptsy[i]), 1, Scalar(255, 255, 0), 3, 8, 0);
-		//}
-		vector<double> filr = filter(xcoord, ycoord, img);	//use statistics to filter out unwanted circles
-		//cout << filr.size() << endl;
+		//create target feature vector
+		int ptsx[] = { 285, 157, 282, 422, 391, 193 };
+		int ptsy[] = { 215, 165, 79, 158, 310, 311 };
+		MatrixXd tfv(12,1);	
+		tfv << 285, 215, 157, 165, 282, 79, 422, 158, 391, 310, 193, 311;
+		for (int i = 0; i < 6; i++) {
+			circle(img, Point(ptsx[i], ptsy[i]), 1, Scalar(255, 255, 0), 3, 8, 0);
+		}
+		//use statistics to filter out unwanted circles
+		vector<double> filr = filter(xcoord, ycoord, img);
 		int count2 = 0;
+		//Check if 6 circles remain after filtering
 		if (filr.size() == 12) {
-			//cir << "Filtered:" << endl;
-			//for (int i = 0; i < 6; i++) {
-			//	cir << "x:  " << filr[count2] << "y:  " << filr[count2 + 1] << endl;
-				//count2 = count2 + 2;
-			//}
-			vector<double> s = sort(filr);	//sort filtered circle into form of target feature vector
+			//sort filtered circle into form of current feature vector
+			fc = sort(filr);	
 			int count = 0;
-			//cir << "Start Sort" << endl;
 			for (int i = 0; i < 6; i++) {
-				circle(img, Point(s[count], s[count+1]), 1, Scalar(255, 0, 0), 3, 8, 0);	//Draw center point for current feature vector
-				cir << s[count] << " " << s[count + 1] << " ";
+				//circle(img, Point(fc.row(count).sum(), fc.row(count+1).sum(), 1, Scalar(255, 0, 0), 3, 8, 0);	//Draw center point for current feature vector
+				cir << fc.row(count) << endl << fc.row(count+1) << endl;								//Needs updating
 				count = count + 2;
 			}
-			//cir << endl;
-			//for (int i = 0; i < 12; i++)
-				//cir << filr[i] << "	";
-			
+			cir << endl;
+			if (init == false) {
+				fp = fc;
+				init = true;
+			}
+			else {
+				//Begin Uncalibrated visual servoing
+				MatrixXd df(12, 1);
+				df = fc - fp;
+				//find e
+				MatrixXd e(12, 1);
+				e = tfv - fc;
+				//update fp
+				fp = fc;
+				//Find h
+				MatrixXd h(3, 1);
+				h = thec - thep;
+				//update Jacobian Matrix
+				RowVectorXd var(1);
+				var = (lam + h.transpose()*P*h).inverse();
+				jac = jac + (var.sum())*(df - jac*h)*h.transpose()*P;
+				//cout << jac << endl << endl;
+				//Update P
+				P = lam.inverse()*((P - (lam + h.transpose()*P*h).inverse())*(P*h*h.transpose()*P));
+				//Update motor commands
+				MatrixXd theta(3, 1);
+				theta = thep - (jac.transpose()*jac).inverse()*jac*e;
+				thep = thec;
+				thec = theta;
+				cout << endl << thec << endl;
+			}
 		}
-		cir << endl;
-		
-
-		imshow("detected circles", img); //Show detected circles
-		if(waitKey(100)=='q')	//hold 'q' to quit program
+		//Show detected circles
+		imshow("detected circles", img); 
+		//hold 'q' to quit program
+		if(waitKey(3000)=='q')	
 			break;
-
 	}
 	return 0;
 }
