@@ -1,4 +1,4 @@
-#include "stdafx.h"	//only needed for Visual Studio
+//#include "stdafx.h"	//only needed for Visual Studio
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <iterator>
 #include <math.h>
-#include <Eigen\Dense.h>
+#include <Eigen/Dense>
 
 using namespace cv;
 using namespace std;
@@ -132,7 +132,7 @@ MatrixXd sort(vector<double> f) {
 
 int main(int argc, char** argv)
 {
-	ofstream cir("C:/Users/Jake/Desktop/Circle.txt");
+	//ofstream cir("C:/Users/Jake/Desktop/Circle.txt");
 	//Captures video from specified device
 	VideoCapture cap(0);
 	//Create place holder values
@@ -196,10 +196,10 @@ int main(int argc, char** argv)
 			int count = 0;
 			for (int i = 0; i < 6; i++) {
 				//circle(img, Point(fc.row(count).sum(), fc.row(count+1).sum(), 1, Scalar(255, 0, 0), 3, 8, 0);	//Draw center point for current feature vector
-				cir << fc.row(count) << endl << fc.row(count+1) << endl;								//Needs updating
+				//cir << fc.row(count) << endl << fc.row(count+1) << endl;								//Needs updating
 				count = count + 2;
 			}
-			cir << endl;
+			//cir << endl;
 			if (init == false) {
 				fp = fc;
 				init = true;
@@ -222,10 +222,16 @@ int main(int argc, char** argv)
 				jac = jac + (var.sum())*(df - jac*h)*h.transpose()*P;
 				//cout << jac << endl << endl;
 				//Update P
-				P = lam.inverse()*((P - (lam + h.transpose()*P*h).inverse())*(P*h*h.transpose()*P));
+				MatrixXd a1(3,3);
+				//a1 << 1, 1, 1, 1, 1, 1, 1, 1, 1;
+				MatrixXd a2(1,1);
+				a2 = ((lam + h.transpose()*P*h).inverse());
+				a1 << a2.row(0), a2.row(0), a2.row(0), a2.row(0), a2.row(0), a2.row(0), a2.row(0), a2.row(0), a2.row(0);
+				P = 1/lamb*((P-(a1)*(P*h*h.transpose()*P)));
+				//P = lam.inverse()*((P - (lam + h.transpose()*P*h).inverse())*(P*h*h.transpose()*P));
 				//Update motor commands
 				MatrixXd theta(3, 1);
-				theta = thep - (jac.transpose()*jac).inverse()*jac*e;
+				theta = thep - (jac.transpose()*jac).inverse()*jac.transpose()*e;
 				thep = thec;
 				thec = theta;
 				cout << endl << thec << endl;
@@ -234,7 +240,7 @@ int main(int argc, char** argv)
 		//Show detected circles
 		imshow("detected circles", img); 
 		//hold 'q' to quit program
-		if(waitKey(3000)=='q')	
+		if(waitKey(10)=='q')	
 			break;
 	}
 	return 0;
